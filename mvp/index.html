@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rua Acesa</title>
+<style>
+  :root { --bg:#faf8f5; --fg:#1c1b19; --mut:#6b665e; --card:#fff; --line:#e6e1d8; --acc:#b4540a; --acc2:#f0c27a; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#161513; --fg:#f2eee7; --mut:#a39c90; --card:#211f1c; --line:#3a3630; --acc:#f0a35a; --acc2:#6b4a1c; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; background:var(--bg); color:var(--fg); }
+  main { max-width:960px; margin:0 auto; padding:24px 16px 48px; }
+  h1 { margin:0 0 4px; font-size:1.7rem; }
+  .sub { color:var(--mut); margin:0 0 20px; }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; margin-bottom:20px; }
+  .kpi { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; }
+  .kpi b { display:block; font-size:1.6rem; }
+  .kpi span { color:var(--mut); font-size:.85rem; }
+  .ctl { display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin:12px 0; }
+  select, input[type=file] { font:inherit; padding:6px 8px; background:var(--card); color:var(--fg); border:1px solid var(--line); border-radius:8px; }
+  table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+  th, td { padding:8px 10px; text-align:right; border-bottom:1px solid var(--line); font-size:.92rem; }
+  th:first-child, td:first-child { text-align:left; }
+  th { color:var(--mut); font-weight:600; }
+  .bar { position:relative; }
+  .bar i { position:absolute; left:0; top:0; bottom:0; background:var(--acc2); opacity:.55; z-index:0; }
+  .bar span { position:relative; z-index:1; }
+  .wrap { overflow-x:auto; }
+  .note { color:var(--mut); font-size:.85rem; margin-top:16px; }
+  .aviso { background:var(--card); border:1px dashed var(--acc); border-radius:10px; padding:10px 12px; margin:12px 0; font-size:.9rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Rua Acesa</h1>
+  <p class="sub">Onde a falha na infraestrutura de iluminação pesa mais e quanto a prefeitura demora para atender (São Paulo).</p>
+
+  <div id="aviso" class="aviso" hidden></div>
+  <div class="kpis" id="kpis"></div>
+
+  <div class="ctl">
+    <label>Ordenar por
+      <select id="ordem">
+        <option value="abertos_mais_30d">Pedidos abertos há mais de 30 dias</option>
+        <option value="pedidos">Total de pedidos</option>
+        <option value="pct_abertos">% ainda em aberto</option>
+        <option value="mediana_dias_finalizados">Mediana de dias (atendidos)</option>
+        <option value="pedidos_por_mil_pontos">Pedidos por mil pontos de luz</option>
+      </select>
+    </label>
+    <label>ou carregar outro CSV <input type="file" id="arq" accept=".csv"></label>
+  </div>
+
+  <div class="wrap"><table>
+    <thead><tr><th>Distrito</th><th>Pedidos</th><th>Abertos</th><th>% abertos</th><th>Abertos &gt; 30 d</th><th>Mediana (dias)</th><th>Pontos de luz</th><th>Pedidos / mil pontos</th></tr></thead>
+    <tbody id="corpo"></tbody>
+  </table></div>
+
+  <p class="note">Fonte: tabela <code>ouro_mvp_ranking_distritos</code> (Databricks), construída com SP156, GeoSampa e Open-Meteo. Dados agregados por distrito; nenhum endereço ou dado pessoal é exibido. O SP156 não registra pedidos de lâmpada apagada; usamos <em>poste em mau estado</em> e <em>fiação solta</em> como indicador de falha na infraestrutura de iluminação.</p>
+</main>
+<script>
+const ARQUIVO_PADRAO = "dados/ouro_ranking_distritos.csv";
+const AMOSTRA = "dados/ouro_ranking_distritos_AMOSTRA_LOCAL.csv";
+let linhas = [];
+
+function parseCSV(txt) {
+  const l = txt.trim().split(/\r?\n/), cab = l.shift().split(",");
+  return l.map(x => { const c = x.split(","), o = {};
+    cab.forEach((k, i) => { o[k] = c[i] === "" || c[i] === undefined ? null : (isNaN(c[i]) ? c[i] : Number(c[i])); });
+    return o; });
+}
+const n = v => v === null ? "–" : v.toLocaleString("pt-BR");
+function soma(k) { return linhas.reduce((a, r) => a + (r[k] || 0), 0); }
+
+function render() {
+  const k = document.getElementById("ordem").value;
+  const ord = [...linhas].sort((a, b) => (b[k] ?? -1) - (a[k] ?? -1)).slice(0, 15);
+  const max = Math.max(...ord.map(r => r[k] || 0), 1);
+  document.getElementById("corpo").innerHTML = ord.map(r => `<tr>
+    <td>${r.distrito}</td><td>${n(r.pedidos)}</td><td>${n(r.abertos)}</td><td>${n(r.pct_abertos)}</td>
+    <td class="bar">${k === "abertos_mais_30d" ? `<i style="width:${100 * (r.abertos_mais_30d || 0) / max}%"></i>` : ""}<span>${n(r.abertos_mais_30d)}</span></td>
+    <td>${n(r.mediana_dias_finalizados)}</td><td>${n(r.pontos)}</td><td>${n(r.pedidos_por_mil_pontos)}</td></tr>`).join("");
+  const ped = soma("pedidos"), ab = soma("abertos");
+  document.getElementById("kpis").innerHTML = [
+    [n(ped), "pedidos analisados"], [ped ? Math.round(100 * ab / ped) + "%" : "–", "ainda em aberto"],
+    [n(soma("abertos_mais_30d")), "abertos há mais de 30 dias"], [n(linhas.length), "distritos com pedidos"]
+  ].map(([v, t]) => `<div class="kpi"><b>${v}</b><span>${t}</span></div>`).join("");
+}
+
+async function carregar(url, ehAmostra) {
+  const r = await fetch(url); if (!r.ok) throw new Error(r.status);
+  linhas = parseCSV(await r.text());
+  const av = document.getElementById("aviso");
+  av.hidden = !ehAmostra;
+  if (ehAmostra) av.textContent = "Mostrando AMOSTRA calculada localmente com os dados reais de 05/11/2026. Para ver a tabela da Ouro, salve o CSV exportado do Databricks em mvp/dados/ouro_ranking_distritos.csv.";
+  render();
+}
+document.getElementById("ordem").onchange = render;
+document.getElementById("arq").onchange = e => { const f = e.target.files[0]; if (!f) return;
+  const rd = new FileReader(); rd.onload = () => { linhas = parseCSV(rd.result); document.getElementById("aviso").hidden = true; render(); }; rd.readAsText(f); };
+carregar(ARQUIVO_PADRAO, false).catch(() => carregar(AMOSTRA, true)).catch(() => {
+  const av = document.getElementById("aviso"); av.hidden = false;
+  av.textContent = "Abra esta página por um servidor local (python -m http.server, dentro de mvp/) ou use o seletor de CSV acima.";
+});
+</script>
+</body>
+</html>

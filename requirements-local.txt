@@ -1,0 +1,2 @@
+# Só para rodar scripts/coleta_local.py fora do Airflow (o contêiner do Airflow já traz requests)
+requests>=2.31

@@ -1,0 +1,20 @@
+# Pedido pelo professor: sem chaves, senhas ou dados pessoais reais no repositório
+.env
+*.pem
+*.key
+secrets/
+
+# Dados coletados (grandes): sobem ao Volume do Databricks pela interface, não pelo Git
+chegada/*
+!chegada/.gitkeep
+
+# Material interno da equipe (não é entregável): notas, ficha, rascunho do relatório e prints
+docs/
+relatorio/
+PROXIMOS_PASSOS.md
+Rua Acesa*Ficha*.md
+
+# Logs do Airflow e cache do Python (gerados localmente)
+logs/
+__pycache__/
+*.pyc

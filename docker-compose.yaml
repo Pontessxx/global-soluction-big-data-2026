@@ -1,0 +1,46 @@
+# Airflow 3 local para o Rua Acesa.  Uso:  docker compose up -d   ->  http://localhost:8080
+# Postgres + LocalExecutor (o SQLite do modo standalone não paralelizaria as tarefas).
+# [NÃO TESTADO NESTA MÁQUINA] confirme a subida no seu Docker antes do 1º dia de coleta.
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow   # banco local descartável, sem dado real
+      POSTGRES_DB: airflow
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 5s
+      retries: 10
+
+  airflow:
+    image: apache/airflow:3.0.6
+    command: standalone
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS: "true"   # só para uso local
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      TZ: America/Sao_Paulo
+      # Variables do Airflow via ambiente (valores vêm do .env, que NÃO vai ao Git)
+      AIRFLOW_VAR_RUA_ACESA_CHEGADA: /opt/airflow/chegada
+      AIRFLOW_VAR_SP156_N_TRIMESTRES: ${SP156_N_TRIMESTRES:-2}
+      AIRFLOW_VAR_OPENMETEO_LAT: ${OPENMETEO_LAT:--23.55}
+      AIRFLOW_VAR_OPENMETEO_LON: ${OPENMETEO_LON:--46.63}
+      AIRFLOW_VAR_NOTIFY_WEBHOOK_URL: ${NOTIFY_WEBHOOK_URL:-}
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./chegada:/opt/airflow/chegada
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - ./config:/opt/airflow/config
+
+volumes:
+  pgdata:
